@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DocConvert</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --card: #1e1e1e;
+    --border: #2a2a2a;
+    --accent: #e8ff4a;
+    --accent2: #ff6b35;
+    --text: #f0f0f0;
+    --muted: #666;
+    --success: #4ade80;
+    --error: #f87171;
+  }
+
+  body.light-mode {
+    --bg: #f5f5f0;
+    --surface: #ffffff;
+    --card: #efefef;
+    --border: #dcdcdc;
+    --accent: #c8df00;
+    --text: #111111;
+    --muted: #888;
+    --success: #16a34a;
+    --error: #dc2626;
+  }
+
+  /* Theme toggle */
+  .theme-toggle {
+    position: absolute;
+    top: 50%;
+    right: 24px;
+    transform: translateY(-50%);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .theme-toggle:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+  .theme-icon { font-size: 14px; line-height: 1; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 0 80px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  header {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #e8ff4a22, transparent 70%);
+    pointer-events: none;
+  }
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: inline-block;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+  .tagline {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    padding: 16px 24px 0;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+  .tab-btn.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* Panels */
+  .panel { display: none; padding: 20px 24px; }
+  .panel.active { display: block; }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 14px;
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, #e8ff4a0a, transparent 60%);
+    pointer-events: none;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: #1a1a12;
+  }
+  .upload-icon {
+    font-size: 36px;
+    display: block;
+    margin-bottom: 12px;
+    line-height: 1;
+  }
+  .upload-zone h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .upload-zone p {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .upload-zone input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  /* File preview */
+  .file-preview {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 14px;
+  }
+  .file-preview.visible { display: flex; }
+  .file-icon {
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    background: var(--card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+  }
+  .file-size {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .remove-file {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px;
+    flex-shrink: 0;
+    transition: color 0.2s;
+  }
+  .remove-file:hover { color: var(--error); }
+
+  /* Convert button */
+  .convert-btn {
+    width: 100%;
+    margin-top: 16px;
+    padding: 16px;
+    border-radius: 12px;
+    border: none;
+    background: var(--accent);
+    color: #000;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .convert-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px #e8ff4a30; }
+  .convert-btn:disabled { background: var(--border); color: var(--muted); transform: none; box-shadow: none; cursor: not-allowed; }
+  .convert-btn.loading { pointer-events: none; }
+
+  /* Progress */
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 14px;
+    overflow: hidden;
+    display: none;
+  }
+  .progress-bar.visible { display: block; }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  /* Status */
+  .status-msg {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    display: none;
+  }
+  .status-msg.visible { display: block; }
+  .status-msg.success { background: #0d2010; border: 1px solid #4ade8033; color: var(--success); }
+  .status-msg.error { background: #200d0d; border: 1px solid #f8717133; color: var(--error); }
+  .status-msg.info { background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+
+  /* Download button */
+  .download-btn {
+    width: 100%;
+    margin-top: 10px;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--success);
+    background: transparent;
+    color: var(--success);
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+  .download-btn.visible { display: flex; }
+  .download-btn:hover { background: #4ade8015; }
+
+  /* Info cards */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .info-card .ic-icon { font-size: 22px; margin-bottom: 8px; }
+  .info-card h4 {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .info-card p { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid #00000033;
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+
+  /* Section label */
+  .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Bottom nav feel */
+  .bottom-hint {
+    position: fixed;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 100%; max-width: 480px;
+    padding: 14px 24px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* Fade in */
+  .panel.active { animation: fadeUp 0.3s ease; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo"><span class="logo-dot"></span>DocConvert</div>
+    <div class="tagline">Convert files instantly — no upload to server</div>
+  </div>
+  <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn">
+    <span class="theme-icon" id="theme-icon">🌙</span><span id="theme-label">Dark</span>
+  </button>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('docx2pdf')">DOCX → PDF</button>
+  <button class="tab-btn" onclick="switchTab('pdf2docx')">PDF → DOCX</button>
+  <button class="tab-btn" onclick="switchTab('img2pdf')">IMG → PDF</button>
+  <button class="tab-btn" onclick="switchTab('pdf2img')">PDF → IMG</button>
+</div>
+
+<!-- DOCX to PDF -->
+<div id="panel-docx2pdf" class="panel active">
+  <div class="section-label">Word Document → PDF</div>
+  <div class="upload-zone" id="zone-docx2pdf" ondragover="handleDrag(event)" ondragleave="handleDragLeave(event,'zone-docx2pdf')" ondrop="handleDrop(event,'docx2pdf')">
+    <input type="file" accept=".docx" onchange="handleFile(event,'docx2pdf')" />
+    <span class="upload-icon">📄</span>
+    <h3>Drop your DOCX file</h3>
+    <p>or tap to browse<br/>.docx files only</p>
+  </div>
+  <div class="file-preview" id="preview-docx2pdf">
+    <div class="file-icon">📝</div>
+    <div class="file-info">
+      <div class="file-name" id="fname-docx2pdf"></div>
+      <div class="file-size" id="fsize-docx2pdf"></div>
+    </div>
+    <button class="remove-file" onclick="clearFile('docx2pdf')">×</button>
+  </div>
+  <div class="progress-bar" id="prog-docx2pdf"><div class="progress-fill" id="progfill-docx2pdf"></div></div>
+  <div class="status-msg" id="status-docx2pdf"></div>
+  <a class="download-btn" id="dl-docx2pdf">⬇ Download PDF</a>
+  <button class="convert-btn" id="btn-docx2pdf" onclick="convert('docx2pdf')" disabled>Convert to PDF</button>
+  <div class="info-grid">
+    <div class="info-card"><div class="ic-icon">🔒</div><h4>Private</h4><p>Files stay on your device. Nothing is uploaded.</p></div>
+    <div class="info-card"><div class="ic-icon">⚡</div><h4>Fast</h4><p>In-browser conversion. Works offline.</p></div>
+  </div>
+</div>
+
+<!-- PDF to DOCX -->
+<div id="panel-pdf2docx" class="panel">
+  <div class="section-label">PDF → Word Document</div>
+  <div class="upload-zone" id="zone-pdf2docx" ondragover="handleDrag(event)" ondragleave="handleDragLeave(event,'zone-pdf2docx')" ondrop="handleDrop(event,'pdf2docx')">
+    <input type="file" accept=".pdf" onchange="handleFile(event,'pdf2docx')" />
+    <span class="upload-icon">📕</span>
+    <h3>Drop your PDF file</h3>
+    <p>or tap to browse<br/>.pdf files only</p>
+  </div>
+  <div class="file-preview" id="preview-pdf2docx">
+    <div class="file-icon">📕</div>
+    <div class="file-info">
+      <div class="file-name" id="fname-pdf2docx"></div>
+      <div class="file-size" id="fsize-pdf2docx"></div>
+    </div>
+    <button class="remove-file" onclick="clearFile('pdf2docx')">×</button>
+  </div>
+  <div class="progress-bar" id="prog-pdf2docx"><div class="progress-fill" id="progfill-pdf2docx"></div></div>
+  <div class="status-msg" id="status-pdf2docx"></div>
+  <a class="download-btn" id="dl-pdf2docx">⬇ Download DOCX</a>
+  <button class="convert-btn" id="btn-pdf2docx" onclick="convert('pdf2docx')" disabled>Convert to DOCX</button>
+  <div class="info-grid">
+    <div class="info-card"><div class="ic-icon">📋</div><h4>Text Extracted</h4><p>All readable text from your PDF is preserved.</p></div>
+    <div class="info-card"><div class="ic-icon">📐</div><h4>Editable</h4><p>Output opens in Word or Google Docs.</p></div>
+  </div>
+</div>
+
+<!-- IMG to PDF -->
+<div id="panel-img2pdf" class="panel">
+  <div class="section-label">Images → PDF</div>
+  <div class="upload-zone" id="zone-img2pdf" ondragover="handleDrag(event)" ondragleave="handleDragLeave(event,'zone-img2pdf')" ondrop="handleDrop(event,'img2pdf')">
+    <input type="file" accept="image/jpeg,image/png,image/webp" multiple onchange="handleFile(event,'img2pdf')" />
+    <span class="upload-icon">🖼️</span>
+    <h3>Drop your images</h3>
+    <p>or tap to browse<br/>JPG, PNG, WEBP — multiple files OK</p>
+  </div>
+  <div class="file-preview" id="preview-img2pdf">
+    <div class="file-icon">🖼️</div>
+    <div class="file-info">
+      <div class="file-name" id="fname-img2pdf"></div>
+      <div class="file-size" id="fsize-img2pdf"></div>
+    </div>
+    <button class="remove-file" onclick="clearFile('img2pdf')">×</button>
+  </div>
+  <div class="progress-bar" id="prog-img2pdf"><div class="progress-fill" id="progfill-img2pdf"></div></div>
+  <div class="status-msg" id="status-img2pdf"></div>
+  <a class="download-btn" id="dl-img2pdf">⬇ Download PDF</a>
+  <button class="convert-btn" id="btn-img2pdf" onclick="convert('img2pdf')" disabled>Convert to PDF</button>
+  <div class="info-grid">
+    <div class="info-card"><div class="ic-icon">📸</div><h4>Multi-Image</h4><p>Combine multiple images into one PDF.</p></div>
+    <div class="info-card"><div class="ic-icon">🎨</div><h4>Quality Kept</h4><p>Images are embedded at full resolution.</p></div>
+  </div>
+</div>
+
+<!-- PDF to IMG -->
+<div id="panel-pdf2img" class="panel">
+  <div class="section-label">PDF → Images (PNG)</div>
+  <div class="upload-zone" id="zone-pdf2img" ondragover="handleDrag(event)" ondragleave="handleDragLeave(event,'zone-pdf2img')" ondrop="handleDrop(event,'pdf2img')">
+    <input type="file" accept=".pdf" onchange="handleFile(event,'pdf2img')" />
+    <span class="upload-icon">📕</span>
+    <h3>Drop your PDF file</h3>
+    <p>or tap to browse<br/>Each page becomes a PNG image</p>
+  </div>
+  <div class="file-preview" id="preview-pdf2img">
+    <div class="file-icon">📕</div>
+    <div class="file-info">
+      <div class="file-name" id="fname-pdf2img"></div>
+      <div class="file-size" id="fsize-pdf2img"></div>
+    </div>
+    <button class="remove-file" onclick="clearFile('pdf2img')">×</button>
+  </div>
+  <div class="progress-bar" id="prog-pdf2img"><div class="progress-fill" id="progfill-pdf2img"></div></div>
+  <div class="status-msg" id="status-pdf2img"></div>
+  <div id="img-results"></div>
+  <button class="convert-btn" id="btn-pdf2img" onclick="convert('pdf2img')" disabled>Convert to Images</button>
+  <div class="info-grid">
+    <div class="info-card"><div class="ic-icon">📄</div><h4>Per Page</h4><p>Every PDF page is exported as its own PNG.</p></div>
+    <div class="info-card"><div class="ic-icon">🖥️</div><h4>High-Res</h4><p>Rendered at 2x scale for sharp output.</p></div>
+  </div>
+</div>
+
+<div class="bottom-hint">All conversions happen on your device • 100% private</div>
+
+<script>
+// PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// Theme toggle
+let isDark = true;
+function toggleTheme() {
+  isDark = !isDark;
+  document.body.classList.toggle('light-mode', !isDark);
+  document.getElementById('theme-icon').textContent = isDark ? '🌙' : '☀️';
+  document.getElementById('theme-label').textContent = isDark ? 'Dark' : 'Light';
+}
+
+const files = { docx2pdf: null, pdf2docx: null, img2pdf: null, pdf2img: null };
+
+function switchTab(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    const ids = ['docx2pdf','pdf2docx','img2pdf','pdf2img'];
+    b.classList.toggle('active', ids[i] === id);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+}
+
+function handleDrag(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function handleDragLeave(e, zoneId) {
+  document.getElementById(zoneId).classList.remove('drag-over');
+}
+function handleDrop(e, type) {
+  e.preventDefault();
+  document.getElementById('zone-'+type).classList.remove('drag-over');
+  const f = e.dataTransfer.files;
+  if (f.length) setFiles(type, f);
+}
+function handleFile(e, type) {
+  setFiles(type, e.target.files);
+}
+
+function setFiles(type, fileList) {
+  if (type === 'img2pdf') {
+    files[type] = Array.from(fileList);
+    const names = files[type].map(f => f.name).join(', ');
+    const size = files[type].reduce((a,f) => a+f.size, 0);
+    showPreview(type, names, size);
+  } else {
+    files[type] = fileList[0];
+    showPreview(type, files[type].name, files[type].size);
+  }
+  clearStatus(type);
+}
+
+function showPreview(type, name, size) {
+  document.getElementById('fname-'+type).textContent = name;
+  document.getElementById('fsize-'+type).textContent = formatSize(size);
+  document.getElementById('preview-'+type).classList.add('visible');
+  document.getElementById('btn-'+type).disabled = false;
+  hide('dl-'+type);
+  document.getElementById('img-results').innerHTML = '';
+}
+
+function clearFile(type) {
+  files[type] = null;
+  document.getElementById('preview-'+type).classList.remove('visible');
+  document.getElementById('btn-'+type).disabled = true;
+  clearStatus(type);
+  hide('dl-'+type);
+  document.getElementById('img-results') && (document.getElementById('img-results').innerHTML = '');
+}
+
+function clearStatus(type) {
+  const s = document.getElementById('status-'+type);
+  s.className = 'status-msg'; s.textContent = '';
+}
+
+function setStatus(type, msg, cls) {
+  const s = document.getElementById('status-'+type);
+  s.className = 'status-msg visible ' + cls;
+  s.textContent = msg;
+}
+
+function setProgress(type, pct) {
+  const bar = document.getElementById('prog-'+type);
+  const fill = document.getElementById('progfill-'+type);
+  if (pct === null) { bar.classList.remove('visible'); return; }
+  bar.classList.add('visible');
+  fill.style.width = pct + '%';
+}
+
+function hide(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('visible');
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function triggerDownload(url, filename) {
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+}
+
+async function convert(type) {
+  const btn = document.getElementById('btn-'+type);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Converting...';
+  clearStatus(type);
+  setProgress(type, 10);
+  try {
+    if (type === 'docx2pdf') await convertDocxToPdf();
+    else if (type === 'pdf2docx') await convertPdfToDocx();
+    else if (type === 'img2pdf') await convertImgToPdf();
+    else if (type === 'pdf2img') await convertPdfToImg();
+  } catch(err) {
+    setStatus(type, '⚠ Error: ' + err.message, 'error');
+  }
+  setProgress(type, null);
+  btn.disabled = false;
+  btn.innerHTML = type.includes('pdf') && type.startsWith('pdf') ? (type === 'pdf2docx' ? 'Convert to DOCX' : 'Convert to Images') : (type === 'docx2pdf' ? 'Convert to PDF' : 'Convert to PDF');
+}
+
+// DOCX → PDF using mammoth (extract text) + jsPDF
+async function convertDocxToPdf() {
+  const file = files['docx2pdf'];
+  if (!file) throw new Error('No file selected');
+  setProgress('docx2pdf', 30);
+  const ab = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer: ab });
+  setProgress('docx2pdf', 60);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const text = result.value || '';
+  const lines = doc.splitTextToSize(text, 495);
+  let y = 50;
+  const pageH = doc.internal.pageSize.height;
+  lines.forEach(line => {
+    if (y > pageH - 50) { doc.addPage(); y = 50; }
+    doc.setFontSize(11);
+    doc.text(line, 50, y);
+    y += 16;
+  });
+  setProgress('docx2pdf', 90);
+  const blob = doc.output('blob');
+  const url = URL.createObjectURL(blob);
+  const fname = file.name.replace(/\.docx$/i, '') + '.pdf';
+  const dlBtn = document.getElementById('dl-docx2pdf');
+  dlBtn.href = url; dlBtn.download = fname;
+  dlBtn.classList.add('visible');
+  setStatus('docx2pdf', '✓ Conversion complete! Click below to download your PDF.', 'success');
+  setProgress('docx2pdf', 100);
+}
+
+// PDF → DOCX (text extraction → docx via raw XML)
+async function convertPdfToDocx() {
+  const file = files['pdf2docx'];
+  if (!file) throw new Error('No file selected');
+  setProgress('pdf2docx', 20);
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    setProgress('pdf2docx', 20 + Math.round((i/pdf.numPages)*60));
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    const pageText = tc.items.map(it => it.str).join(' ');
+    fullText += `--- Page ${i} ---\n${pageText}\n\n`;
+  }
+  // Build minimal OOXML docx
+  const docxBlob = buildDocx(fullText);
+  setProgress('pdf2docx', 95);
+  const url = URL.createObjectURL(docxBlob);
+  const fname = file.name.replace(/\.pdf$/i, '') + '.docx';
+  const dlBtn = document.getElementById('dl-pdf2docx');
+  dlBtn.href = url; dlBtn.download = fname;
+  dlBtn.classList.add('visible');
+  setStatus('pdf2docx', '✓ Done! Text extracted from all ' + pdf.numPages + ' page(s).', 'success');
+  setProgress('pdf2docx', 100);
+}
+
+function buildDocx(text) {
+  // Minimal valid docx (zip with document.xml)
+  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const paras = escaped.split('\n').map(line =>
+    `<w:p><w:r><w:t xml:space="preserve">${line}</w:t></w:r></w:p>`
+  ).join('');
+
+  const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas"
+  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>${paras}<w:sectPr/></w:body>
+</w:document>`;
+
+  const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+  const wordRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+</Relationships>`;
+
+  const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+  // Use fflate if available, otherwise fallback to JSZip-style manual zip
+  return buildZip({
+    '[Content_Types].xml': contentTypesXml,
+    '_rels/.rels': relsXml,
+    'word/document.xml': docXml,
+    'word/_rels/document.xml.rels': wordRelsXml
+  });
+}
+
+function buildZip(files) {
+  // Simple zip builder without external lib
+  const encoder = new TextEncoder();
+  const parts = [];
+  const centralDir = [];
+  let offset = 0;
+
+  function crc32(data) {
+    let crc = 0xFFFFFFFF;
+    const table = crc32.table || (crc32.table = (() => {
+      const t = new Uint32Array(256);
+      for (let i = 0; i < 256; i++) {
+        let c = i;
+        for (let j = 0; j < 8; j++) c = (c & 1) ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+        t[i] = c;
+      }
+      return t;
+    })());
+    for (let i = 0; i < data.length; i++) crc = table[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function u32(n) { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, n, true); return b; }
+  function u16(n) { const b = new Uint8Array(2); new DataView(b.buffer).setUint16(0, n, true); return b; }
+
+  for (const [name, content] of Object.entries(files)) {
+    const nameBytes = encoder.encode(name);
+    const data = encoder.encode(content);
+    const crc = crc32(data);
+    const localHeader = new Uint8Array([
+      0x50,0x4B,0x03,0x04, // sig
+      20,0, // version needed
+      0,0,  // flags
+      0,0,  // compression (stored)
+      0,0,0,0, // mod time/date
+      ...u32(crc),
+      ...u32(data.length),
+      ...u32(data.length),
+      ...u16(nameBytes.length),
+      0,0,  // extra len
+      ...nameBytes
+    ]);
+    parts.push(localHeader, data);
+    centralDir.push({ nameBytes, crc, size: data.length, offset });
+    offset += localHeader.length + data.length;
+  }
+
+  const cdStart = offset;
+  for (const { nameBytes, crc, size, offset: fileOffset } of centralDir) {
+    const cdEntry = new Uint8Array([
+      0x50,0x4B,0x01,0x02, // sig
+      20,0, // version made by
+      20,0, // version needed
+      0,0,  // flags
+      0,0,  // compression
+      0,0,0,0, // mod time/date
+      ...u32(crc),
+      ...u32(size),
+      ...u32(size),
+      ...u16(nameBytes.length),
+      0,0,  // extra len
+      0,0,  // comment len
+      0,0,  // disk start
+      0,0,  // internal attr
+      0,0,0,0, // external attr
+      ...u32(fileOffset),
+      ...nameBytes
+    ]);
+    parts.push(cdEntry);
+    offset += cdEntry.length;
+  }
+
+  const cdSize = offset - cdStart;
+  const eocd = new Uint8Array([
+    0x50,0x4B,0x05,0x06, // sig
+    0,0,0,0, // disk numbers
+    ...u16(centralDir.length),
+    ...u16(centralDir.length),
+    ...u32(cdSize),
+    ...u32(cdStart),
+    0,0 // comment len
+  ]);
+  parts.push(eocd);
+
+  const total = parts.reduce((a, p) => a + p.length, 0);
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const p of parts) { out.set(p, pos); pos += p.length; }
+  return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
+// IMG → PDF
+async function convertImgToPdf() {
+  const imgFiles = files['img2pdf'];
+  if (!imgFiles || !imgFiles.length) throw new Error('No images selected');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageW = doc.internal.pageSize.width;
+  const pageH = doc.internal.pageSize.height;
+
+  for (let i = 0; i < imgFiles.length; i++) {
+    setProgress('img2pdf', Math.round(10 + (i/imgFiles.length)*80));
+    const f = imgFiles[i];
+    const dataUrl = await readAsDataURL(f);
+    const imgProps = doc.getImageProperties(dataUrl);
+    const ratio = Math.min((pageW - 40) / imgProps.width, (pageH - 40) / imgProps.height);
+    const w = imgProps.width * ratio;
+    const h = imgProps.height * ratio;
+    const x = (pageW - w) / 2;
+    const y = (pageH - h) / 2;
+    if (i > 0) doc.addPage();
+    doc.addImage(dataUrl, imgProps.fileType || 'JPEG', x, y, w, h);
+  }
+
+  setProgress('img2pdf', 95);
+  const blob = doc.output('blob');
+  const url = URL.createObjectURL(blob);
+  const dlBtn = document.getElementById('dl-img2pdf');
+  dlBtn.href = url; dlBtn.download = 'images-converted.pdf';
+  dlBtn.classList.add('visible');
+  setStatus('img2pdf', `✓ ${imgFiles.length} image(s) combined into one PDF.`, 'success');
+  setProgress('img2pdf', 100);
+}
+
+// PDF → Images
+async function convertPdfToImg() {
+  const file = files['pdf2img'];
+  if (!file) throw new Error('No file selected');
+  setProgress('pdf2img', 10);
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  const container = document.getElementById('img-results');
+  container.innerHTML = '';
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    setProgress('pdf2img', Math.round(10 + (i/pdf.numPages)*85));
+    const page = await pdf.getPage(i);
+    const vp = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    canvas.width = vp.width; canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    const url = canvas.toDataURL('image/png');
+    const fname = file.name.replace(/\.pdf$/i,'') + `_page${i}.png`;
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'margin-top:12px; background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden;';
+    const img = document.createElement('img');
+    img.src = url; img.style.cssText = 'width:100%; display:block;';
+    const dlRow = document.createElement('div');
+    dlRow.style.cssText = 'padding:10px 14px;';
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    a.style.cssText = 'display:flex;align-items:center;gap:6px;color:var(--success);font-family:"DM Mono",monospace;font-size:12px;text-decoration:none;';
+    a.innerHTML = `⬇ ${fname}`;
+    dlRow.appendChild(a);
+    wrapper.appendChild(img);
+    wrapper.appendChild(dlRow);
+    container.appendChild(wrapper);
+  }
+
+  setStatus('pdf2img', `✓ ${pdf.numPages} page(s) converted. Download each image below.`, 'success');
+  setProgress('pdf2img', 100);
+}
+
+function readAsDataURL(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+</script>
+</body>
+</html>
